@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaserEngrave Pro - Modern Image Processor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #4f46e5;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .upload-section {
+            border: 2px dashed var(--border);
+            border-radius: 0.75rem;
+            padding: 3rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-section.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .preview-card {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            background: var(--surface);
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            height: 400px;
+            object-fit: contain;
+            border-radius: 0.5rem;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .material-card {
+            padding: 1.5rem;
+            border: 2px solid var(--border);
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .material-card.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .slider-container {
+            padding: 1rem;
+            background: var(--background);
+            border-radius: 0.75rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--secondary);
+        }
+
+        .error-message {
+            color: var(--error);
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .preview-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LaserEngrave Pro</h1>
+            <p>Professional image optimization for laser engraving</p>
+        </div>
+
+        <div class="upload-section" id="dropZone">
+            <div class="loading-overlay" id="loadingOverlay">Processing...</div>
+            <input type="file" id="fileInput" hidden accept="image/*">
+            <div style="margin-bottom: 1rem;">📁</div>
+            <h3>Drag & Drop Image or Click to Upload</h3>
+            <p style="color: #64748b; margin-top: 0.5rem;">Supports: JPG, PNG, BMP</p>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <div class="preview-grid">
+            <div class="preview-card">
+                <h4>Original Image</h4>
+                <canvas id="originalCanvas"></canvas>
+            </div>
+            <div class="preview-card">
+                <h4>Processed Image</h4>
+                <canvas id="processedCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="controls-grid">
+            <div class="material-card active" data-material="wood">
+                <h3>🌳 Wood Preset</h3>
+                <p style="color: #64748b; margin-top: 0.5rem;">Natural wood optimization</p>
+            </div>
+            <div class="material-card" data-material="metal">
+                <h3>🔩 Metal Preset</h3>
+                <p style="color: #64748b; margin-top: 0.5rem;">Anodized metal settings</p>
+            </div>
+            <div class="material-card" data-material="acrylic">
+                <h3>🧊 Acrylic Preset</h3>
+                <p style="color: #64748b; margin-top: 0.5rem;">Clear acrylic profile</p>
+            </div>
+        </div>
+
+        <div class="controls-grid">
+            <div class="slider-container">
+                <label>Contrast <span id="contrastValue">100%</span></label>
+                <input type="range" id="contrast" min="50" max="150" value="100">
+            </div>
+            <div class="slider-container">
+                <label>Threshold <span id="thresholdValue">128</span></label>
+                <input type="range" id="threshold" min="0" max="255" value="128">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-primary" id="processBtn">Process Image</button>
+            <button class="btn btn-primary" id="exportBtn">Export PNG</button>
+            <button class="btn" id="resetBtn">Reset Settings</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <script>
+        const materialPresets = {
+            wood: { contrast: 1.2, threshold: 180, dither: false },
+            metal: { contrast: 1.8, threshold: 200, dither: false },
+            acrylic: { contrast: 1.5, threshold: 160, dither: true }
+        };
+
+        let currentMaterial = 'wood';
+        let cropper = null;
+        let originalImage = null;
+
+        // DOM Elements
+        const elements = {
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            originalCanvas: document.getElementById('originalCanvas'),
+            processedCanvas: document.getElementById('processedCanvas'),
+            contrast: document.getElementById('contrast'),
+            threshold: document.getElementById('threshold'),
+            processBtn: document.getElementById('processBtn'),
+            exportBtn: document.getElementById('exportBtn'),
+            errorMessage: document.getElementById('errorMessage'),
+            loadingOverlay: document.getElementById('loadingOverlay')
+        };
+
+        // Event Listeners
+        elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+        elements.fileInput.addEventListener('change', handleFileUpload);
+        elements.processBtn.addEventListener('click', processImage);
+        elements.exportBtn.addEventListener('click', exportImage);
+        elements.contrast.addEventListener('input', updateSliderValue);
+        elements.threshold.addEventListener('input', updateSliderValue);
+
+        // Drag & Drop Handlers
+        ['dragover', 'dragleave', 'drop'].forEach(event => {
+            elements.dropZone.addEventListener(event, preventDefaults);
+        });
+
+        elements.dropZone.addEventListener('dragover', handleDragOver);
+        elements.dropZone.addEventListener('drop', handleDrop);
+
+        // Material Selection
+        document.querySelectorAll('.material-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.material-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                currentMaterial = card.dataset.material;
+                applyMaterialPreset();
+            });
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDragOver(e) {
+            elements.dropZone.classList.add('dragover');
+        }
+
+        function handleDrop(e) {
+            elements.dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length) handleFileUpload({ target: { files } });
+        }
+
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload a valid image file (JPG, PNG, BMP)');
+                return;
+            }
+
+            showLoading(true);
+            const reader = new FileReader();
+            reader.onload = initCropper;
+            reader.onerror = () => showError('Error reading file');
+            reader.readAsDataURL(file);
+        }
+
+        function initCropper(e) {
+            if (cropper) cropper.destroy();
+
+            originalImage = new Image();
+            originalImage.onload = () => {
+                elements.originalCanvas.width = originalImage.width;
+                elements.originalCanvas.height = originalImage.height;
+                const ctx = elements.originalCanvas.getContext('2d');
+                ctx.drawImage(originalImage, 0, 0);
+                processImage();
+                showLoading(false);
+            };
+            originalImage.onerror = () => showError('Error loading image');
+            originalImage.src = e.target.result;
+        }
+
+        function applyMaterialPreset() {
+            const preset = materialPresets[currentMaterial];
+            elements.contrast.value = preset.contrast * 100;
+            elements.threshold.value = preset.threshold;
+            updateSliderValue();
+            processImage();
+        }
+
+        function processImage() {
+            if (!originalImage) return;
+
+            showLoading(true);
+            elements.processedCanvas.width = originalImage.width;
+            elements.processedCanvas.height = originalImage.height;
+            
+            const ctx = elements.processedCanvas.getContext('2d');
+            ctx.drawImage(originalImage, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, elements.processedCanvas.width, elements.processedCanvas.height);
+            const data = imageData.data;
+            const preset = materialPresets[currentMaterial];
+
+            // Apply contrast
+            const contrast = elements.contrast.value / 100;
+            applyContrast(data, contrast);
+
+            // Apply threshold
+            applyThreshold(data, elements.threshold.value);
+
+            // Apply dithering if needed
+            if (preset.dither) applyFloydSteinbergDithering(data, elements.processedCanvas.width);
+
+            ctx.putImageData(imageData, 0, 0);
+            showLoading(false);
+        }
+
+        function applyContrast(data, contrast) {
+            const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            for(let i = 0; i < data.length; i += 4) {
+                data[i] = factor * (data[i] - 128) + 128;
+                data[i+1] = factor * (data[i+1] - 128) + 128;
+                data[i+2] = factor * (data[i+2] - 128) + 128;
+            }
+        }
+
+        function applyThreshold(data, threshold) {
+            for(let i = 0; i < data.length; i += 4) {
+                const avg = 0.3 * data[i] + 0.59 * data[i+1] + 0.11 * data[i+2];
+                data[i] = data[i+1] = data[i+2] = avg > threshold ? 255 : 0;
+            }
+        }
+
+        function applyFloydSteinbergDithering(data, width) {
+            for(let y = 0; y < data.length / width / 4; y++) {
+                for(let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const oldVal = data[idx];
+                    const newVal = oldVal > 128 ? 255 : 0;
+                    const err = oldVal - newVal;
+                    
+                    data[idx] = data[idx+1] = data[idx+2] = newVal;
+                    
+                    if(x < width-1) distributeError(data, idx+4, err, 7/16);
+                    if(y < data.length / width / 4 - 1) {
+                        if(x > 0) distributeError(data, idx + (width-1)*4, err, 3/16);
+                        distributeError(data, idx + width*4, err, 5/16);
+                        if(x < width-1) distributeError(data, idx + (width+1)*4, err, 1/16);
+                    }
+                }
+            }
+        }
+
+        function distributeError(data, idx, err, ratio) {
+            data[idx] += err * ratio;
+            data[idx+1] += err * ratio;
+            data[idx+2] += err * ratio;
+        }
+
+        function exportImage() {
+            if (!elements.processedCanvas) return;
+            const link = document.createElement('a');
+            link.download = `laser-${currentMaterial}-${Date.now()}.png`;
+            link.href = elements.processedCanvas.toDataURL();
+            link.click();
+        }
+
+        function updateSliderValue() {
+            document.getElementById('contrastValue').textContent = `${elements.contrast.value}%`;
+            document.getElementById('thresholdValue').textContent = elements.threshold.value;
+            if (originalImage) processImage();
+        }
+
+        function showLoading(show) {
+            elements.loadingOverlay.style.display = show ? 'flex' : 'none';
+        }
+
+        function showError(message) {
+            elements.errorMessage.textContent = message;
+            elements.errorMessage.style.display = 'block';
+            setTimeout(() => elements.errorMessage.style.display = 'none', 5000);
+            showLoading(false);
+        }
+    </script>
+</body>
+</html>
